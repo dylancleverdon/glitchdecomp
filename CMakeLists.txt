@@ -26,10 +26,11 @@ add_library(splinter_dsp STATIC ${SPLINTER_DSP_SOURCES})
 target_include_directories(splinter_dsp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
 if(MSVC)
-    target_compile_options(splinter_dsp PRIVATE /W4)
+    set(SPLINTER_WARNING_FLAGS /W4)
 else()
-    target_compile_options(splinter_dsp PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion)
+    set(SPLINTER_WARNING_FLAGS -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion)
 endif()
+target_compile_options(splinter_dsp PRIVATE ${SPLINTER_WARNING_FLAGS})
 
 # ---------------------------------------------------------------------------
 # Tests and offline render tool
@@ -37,15 +38,21 @@ endif()
 if(SPLINTER_BUILD_TESTS)
     enable_testing()
 
+    # Everything in tools/render except main() is a library, so the tests can cover it too.
+    file(GLOB SPLINTER_RENDER_SUPPORT_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/render/*.cpp)
+    list(FILTER SPLINTER_RENDER_SUPPORT_SOURCES EXCLUDE REGEX "RenderMain\\.cpp$")
+    add_library(splinter_render_support STATIC ${SPLINTER_RENDER_SUPPORT_SOURCES})
+    target_include_directories(splinter_render_support PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tools)
+    target_link_libraries(splinter_render_support PUBLIC splinter_dsp)
+
+    add_executable(splinter_render ${CMAKE_CURRENT_SOURCE_DIR}/tools/render/RenderMain.cpp)
+    target_link_libraries(splinter_render PRIVATE splinter_render_support)
+
     file(GLOB SPLINTER_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp)
     add_executable(splinter_tests ${SPLINTER_TEST_SOURCES})
-    target_link_libraries(splinter_tests PRIVATE splinter_dsp)
+    target_link_libraries(splinter_tests PRIVATE splinter_render_support)
     target_include_directories(splinter_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     add_test(NAME splinter_tests COMMAND splinter_tests)
-
-    file(GLOB SPLINTER_RENDER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/render/*.cpp)
-    add_executable(splinter_render ${SPLINTER_RENDER_SOURCES})
-    target_link_libraries(splinter_render PRIVATE splinter_dsp)
 endif()
 
 # ---------------------------------------------------------------------------
